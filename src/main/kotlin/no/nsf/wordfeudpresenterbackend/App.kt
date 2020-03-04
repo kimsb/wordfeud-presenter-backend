@@ -16,6 +16,9 @@ import wordfeudapi.RestWordFeudClient
 import wordfeudapi.domain.BoardType.Normal
 import wordfeudapi.domain.Game
 import wordfeudapi.domain.RuleSet.Norwegian
+import wordfeudapi.domain.Tile
+import wordfeudapi.exception.WordFeudLoginRequiredException
+import java.lang.Thread.sleep
 
 var botClient: RestWordFeudClient = RestWordFeudClient()
 
@@ -39,32 +42,35 @@ fun main() {
                 botClient = RestWordFeudClient()
                 botClient.logon(invitationRequest.inviter, invitationRequest.inviter)
                 val invite = botClient.invite(invitationRequest.invitee, Norwegian, Normal)
-                call.respond(InvitationResponse(gameId = invite.id))
+
+                for (i in 0..60) {
+                    println("pausing 1 sec whilst waiting for notification")
+                    sleep(1000)
+                    val notifications = botClient.notifications
+                    notifications.entries.forEach { notificationEntry ->
+                        if (notificationEntry.type == "new_game" && notificationEntry.username == invitationRequest.invitee) {
+                            println("found new game")
+                            call.respond(InvitationResponse(gameId = notificationEntry.gameId))
+                            return@post
+                        }
+                    }
+                }
+                call.respond(InvitationResponse(error = "Waited one minute without recieving notification about new game"))
             }
 
-            //TODO sette opp metode som henter via gameId
             post("game") {
                 val gameRequest = call.receive<GameRequest>()
-                /*try {
-                    val gameId = botClient.games
-                        .filter { it.opponentName == gameRequest.player2 }
-                        .maxBy(Game::getUpdated)!!
-                        .id
-                    val game = botClient.getGame(gameId)
+                try {
+                    val game = botClient.getGame(gameRequest.gameId)
                     call.respond(mapToGameResponse(game))
                 } catch (exception: WordFeudLoginRequiredException) {
                     println("Fetching of games failed, attempting to login")
                     botClient.logon(gameRequest.player1, gameRequest.player1)
-                    val gameId = botClient.games
-                        .filter { it.opponentName == gameRequest.player2 }
-                        .maxBy(Game::getUpdated)!!
-                        .id
-                    val game = botClient.getGame(gameId)
+                    val game = botClient.getGame(gameRequest.gameId)
                     call.respond(mapToGameResponse(game))
-                }*/
+                }
 
-                call.respond(jsonGameResponse)
-
+                //call.respond(jsonGameResponse)
             }
 
             get("") {
@@ -80,7 +86,9 @@ fun mapToGameResponse(game: Game): GameResponse {
         player1Score = game.me.score,
         player2Score = game.opponent.score,
         isRunning = game.isRunning,
-        tiles = mapGameToTileList(game))
+        tiles = mapGameToTileList(game),
+        lastMove = mapToLastMove(game)
+    )
 }
 
 fun mapGameToTileList(game: Game): List<CharArray> {
@@ -103,15 +111,40 @@ fun mapGameToTileList(game: Game): List<CharArray> {
     val charBoard = mutableListOf(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
     game.tiles
         ?.forEach {
-            charBoard[it.x][it.y] = if (it.isWildcard) it.character.toLowerCase() else it.character
-    }
+            charBoard[it.y][it.x] = if (it.isWildcard) it.character.toLowerCase() else it.character
+        }
     return charBoard
 }
 
-data class InvitationRequest(val inviter: String, val invitee: String)
-data class InvitationResponse(val gameId: Long)
-data class GameRequest(val player1: String, val player2: String)
-data class GameRequestWithId(val player1: String, val gameId: Long)
-data class GameResponse(val gameId: Long, val player1Score: Int, val player2Score: Int, val isRunning: Boolean, val tiles: List<CharArray>)
+fun mapToLastMove(game: Game): LastMoveResponse? {
+    val lastMove = game.lastMove ?: return null
+    val player = if (lastMove.user_id == game.me.id) game.me.username else game.opponentName
+    return LastMoveResponse(player, lastMove.move_type, lastMove.main_word ?: "", lastMove.points, mapToCoordinates(lastMove.move))
+}
 
+fun mapToCoordinates(tiles: List<Tile>): List<Coordinate> {
+    return tiles.map { Coordinate(it.x, it.y) }
+}
+
+data class InvitationRequest(val inviter: String, val invitee: String)
+data class InvitationResponse(val gameId: Long? = null, val error: String? = null)
+data class GameRequest(val gameId: Long, val player1: String)
+data class GameResponse(
+    val gameId: Long,
+    val player1Score: Int,
+    val player2Score: Int,
+    val isRunning: Boolean,
+    val tiles: List<CharArray>,
+    val lastMove: LastMoveResponse?
+)
+
+data class LastMoveResponse(
+    val player: String,
+    val moveType: String,
+    val word: String,
+    val points: Int,
+    val letterPlacments: List<Coordinate>
+)
+
+data class Coordinate(val x: Int, val y: Int)
 

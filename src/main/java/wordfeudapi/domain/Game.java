@@ -22,6 +22,7 @@ public class Game {
     private byte ruleset;
     private User loggedInUser;
     private int board;
+    private LastMove last_move;
 
     public Game(final double updated, final Object[][] tiles, final boolean isRunning, final byte endGame, final byte bagCount, final long id, final int currentPlayer, final PlayerInGame[] players, final byte ruleset, final User loggedInUser, final int board) {
         this.updated = updated;
@@ -198,4 +199,9 @@ public class Game {
                 ", board=" + board +
                 '}';
     }
+
+    public LastMove getLastMove() {
+        return last_move;
+    }
+
 }

@@ -24,6 +24,8 @@ var botClient: RestWordFeudClient = RestWordFeudClient()
 
 fun main() {
 
+    //TODO hold en map over botClienter, så kan man ha flere spill gående på en gang
+    val mapOfBotClients = mutableMapOf<String, RestWordFeudClient>()
 
     val port = System.getenv("PORT")?.toInt() ?: 23567
     embeddedServer(Netty, port) {

@@ -1,17 +1,13 @@
 package no.nsf.wordfeudpresenterbackend
 
-import io.ktor.application.call
-import io.ktor.application.install
-import io.ktor.features.CORS
-import io.ktor.features.ContentNegotiation
-import io.ktor.gson.gson
-import io.ktor.request.receive
-import io.ktor.response.respond
-import io.ktor.routing.get
-import io.ktor.routing.post
-import io.ktor.routing.routing
-import io.ktor.server.engine.embeddedServer
-import io.ktor.server.netty.Netty
+import io.ktor.application.*
+import io.ktor.features.*
+import io.ktor.gson.*
+import io.ktor.request.*
+import io.ktor.response.*
+import io.ktor.routing.*
+import io.ktor.server.engine.*
+import io.ktor.server.netty.*
 import wordfeudapi.RestWordFeudClient
 import wordfeudapi.domain.BoardType.Normal
 import wordfeudapi.domain.Game
@@ -85,6 +81,8 @@ fun main() {
 fun mapToGameResponse(game: Game): GameResponse {
     return GameResponse(
         gameId = game.id,
+        player1 = game.me.username,
+        player2 = game.opponentName,
         player1Score = game.me.score,
         player2Score = game.opponent.score,
         isRunning = game.isRunning,
@@ -133,6 +131,8 @@ data class InvitationResponse(val gameId: Long? = null, val error: String? = nul
 data class GameRequest(val gameId: Long, val player1: String)
 data class GameResponse(
     val gameId: Long,
+    val player1: String,
+    val player2: String,
     val player1Score: Int,
     val player2Score: Int,
     val isRunning: Boolean,
@@ -145,7 +145,7 @@ data class LastMoveResponse(
     val moveType: String,
     val word: String,
     val points: Int,
-    val letterPlacments: List<Coordinate>
+    val letterPlacements: List<Coordinate>
 )
 
 data class Coordinate(val x: Int, val y: Int)

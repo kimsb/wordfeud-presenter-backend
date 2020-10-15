@@ -16,12 +16,7 @@ import wordfeudapi.domain.Tile
 import wordfeudapi.exception.WordFeudLoginRequiredException
 import java.lang.Thread.sleep
 
-var botClient: RestWordFeudClient = RestWordFeudClient()
-
 fun main() {
-
-    //TODO hold en map over botClienter, så kan man ha flere spill gående på en gang
-    val mapOfBotClients = mutableMapOf<String, RestWordFeudClient>()
 
     val port = System.getenv("PORT")?.toInt() ?: 23567
     embeddedServer(Netty, port) {
@@ -37,7 +32,7 @@ fun main() {
 
             post("invite") {
                 val invitationRequest = call.receive<InvitationRequest>()
-                botClient = RestWordFeudClient()
+                val botClient = getBotClient(invitationRequest.inviter)
                 botClient.logon(invitationRequest.inviter, invitationRequest.inviter)
                 val invite = botClient.invite(invitationRequest.invitee, Norwegian, Normal)
 
@@ -58,6 +53,7 @@ fun main() {
 
             post("game") {
                 val gameRequest = call.receive<GameRequest>()
+                val botClient = getBotClient(gameRequest.player1)
                 try {
                     val game = botClient.getGame(gameRequest.gameId)
                     call.respond(mapToGameResponse(game))
@@ -67,8 +63,6 @@ fun main() {
                     val game = botClient.getGame(gameRequest.gameId)
                     call.respond(mapToGameResponse(game))
                 }
-
-                //call.respond(jsonGameResponse)
             }
 
             get("") {
@@ -76,6 +70,18 @@ fun main() {
             }
         }
     }.start(wait = true)
+}
+
+val mapOfBotClients = mutableMapOf<String, RestWordFeudClient>()
+
+fun getBotClient(player: String): RestWordFeudClient {
+    if (mapOfBotClients.contains(player)) {
+        return mapOfBotClients[player]!!
+    } else {
+        val botClient = RestWordFeudClient()
+        mapOfBotClients[player] = botClient
+        return botClient
+    }
 }
 
 fun mapToGameResponse(game: Game): GameResponse {
@@ -119,7 +125,13 @@ fun mapGameToTileList(game: Game): List<CharArray> {
 fun mapToLastMove(game: Game): LastMoveResponse? {
     val lastMove = game.lastMove ?: return null
     val player = if (lastMove.user_id == game.me.id) game.me.username else game.opponentName
-    return LastMoveResponse(player, lastMove.move_type, lastMove.main_word ?: "", lastMove.points, mapToCoordinates(lastMove.move))
+    return LastMoveResponse(
+        player,
+        lastMove.move_type,
+        lastMove.main_word ?: "",
+        lastMove.points,
+        mapToCoordinates(lastMove.move)
+    )
 }
 
 fun mapToCoordinates(tiles: List<Tile>): List<Coordinate> {
